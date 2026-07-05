@@ -1,13 +1,11 @@
-"""Evaluation harness module for Hybrid RAG system."""
+"""Evaluation metrics for Hybrid RAG system."""
 
-from .base import BaseEvaluator
-from .metrics import FaithfulnessEvaluator, RelevanceEvaluator, HallucinationEvaluator
-from .golden_test_set import GoldenTestSet
+from .faithfulness import FaithfulnessEvaluator
+from .relevance import RelevanceEvaluator
+from .hallucination import HallucinationEvaluator
 
 __all__ = [
-    'BaseEvaluator',
     'FaithfulnessEvaluator',
     'RelevanceEvaluator',
-    'HallucinationEvaluator',
-    'GoldenTestSet'
+    'HallucinationEvaluator'
 ]
