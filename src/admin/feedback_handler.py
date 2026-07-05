@@ -1,135 +1,80 @@
-"""Feedback handler for user feedback."""
+"""
+Hybrid RAG - Feedback handler
+"""
 
-from typing import Dict, Any, List
-import logging
-import json
-from pathlib import Path
+from typing import Any, Dict, List, Optional
+from datetime import datetime
 
-logger = logging.getLogger(__name__)
+
+class Feedback:
+    """Represents user feedback."""
+
+    def __init__(
+        self,
+        query_id: str,
+        rating: int,
+        comment: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ):
+        self.query_id = query_id
+        self.rating = rating  # 1-5
+        self.comment = comment
+        self.metadata = metadata or {}
+        self.timestamp = datetime.utcnow().isoformat() + "Z"
 
 
 class FeedbackHandler:
-    """Feedback handler for user feedback."""
-    
-    def __init__(self, config: Dict[str, Any]):
-        """Initialize feedback handler.
-        
-        Args:
-            config: Configuration dictionary
-        """
-        self.config = config
-        self.feedback_dir = Path(config.get('feedback_dir', './data/feedback'))
-        self.feedback_file = self.feedback_dir / 'feedback.json'
-        
-        self.feedback_dir.mkdir(parents=True, exist_ok=True)
-        
-        if not self.feedback_file.exists():
-            self._save_feedback([])
-    
-    def _load_feedback(self) -> List[Dict[str, Any]]:
-        """Load feedback from file.
-        
-        Returns:
-            List of feedback entries
-        """
-        if self.feedback_file.exists():
-            with open(self.feedback_file, 'r') as f:
-                return json.load(f)
-        return []
-    
-    def _save_feedback(self, feedback: List[Dict[str, Any]]):
-        """Save feedback to file.
-        
-        Args:
-            feedback: List of feedback entries
-        """
-        with open(self.feedback_file, 'w') as f:
-            json.dump(feedback, f, indent=2)
-    
+    """Handler for user feedback."""
+
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
+        self.config = config or {}
+        self.feedback_store: List[Feedback] = []
+
     async def submit_feedback(
         self,
-        query: str,
-        answer: str,
-        score: int,
-        comment: str = '',
-        trace_id: str = ''
-    ) -> Dict[str, Any]:
-        """Submit user feedback.
-        
-        Args:
-            query: User query
-            answer: Generated answer
-            score: Feedback score (1-5)
-            comment: Optional comment
-            trace_id: Optional trace ID
-            
-        Returns:
-            Feedback confirmation
-        """
-        feedback_entry = {
-            'query': query,
-            'answer': answer,
-            'score': score,
-            'comment': comment,
-            'trace_id': trace_id,
-            'timestamp': str(__import__('datetime').datetime.now())
-        }
-        
-        feedback = self._load_feedback()
-        feedback.append(feedback_entry)
-        self._save_feedback(feedback)
-        
-        logger.info(f"Received feedback: score={score}, query={query[:50]}...")
-        
-        return {
-            'status': 'success',
-            'feedback_id': len(feedback) - 1
-        }
-    
-    async def get_feedback_stats(self) -> Dict[str, Any]:
-        """Get feedback statistics.
-        
-        Returns:
-            Feedback statistics
-        """
-        feedback = self._load_feedback()
-        
-        if not feedback:
-            return {
-                'total': 0,
-                'avg_score': 0,
-                'positive': 0,
-                'negative': 0
-            }
-        
-        scores = [f['score'] for f in feedback]
-        avg_score = sum(scores) / len(scores)
-        
-        positive = sum(1 for s in scores if s >= 4)
-        negative = sum(1 for s in scores if s <= 2)
-        
-        return {
-            'total': len(feedback),
-            'avg_score': round(avg_score, 2),
-            'positive': positive,
-            'negative': negative,
-            'positive_rate': round(positive / len(feedback) * 100, 1)
-        }
-    
-    async def get_feedback_list(
-        self,
-        limit: int = 100,
-        offset: int = 0
+        query_id: str,
+        rating: int,
+        comment: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> bool:
+        """Submit feedback for a query."""
+        if rating < 1 or rating > 5:
+            return False
+
+        feedback = Feedback(
+            query_id=query_id,
+            rating=rating,
+            comment=comment,
+            metadata=metadata or {},
+        )
+
+        self.feedback_store.append(feedback)
+        return True
+
+    async def get_feedback(
+        self, query_id: Optional[str] = None
     ) -> List[Dict[str, Any]]:
-        """Get feedback list.
-        
-        Args:
-            limit: Maximum number of entries
-            offset: Offset for pagination
-            
-        Returns:
-            List of feedback entries
-        """
-        feedback = self._load_feedback()
-        
-        return feedback[offset:offset + limit]
+        """Get feedback, optionally filtered by query ID."""
+        if query_id:
+            return [
+                f.__dict__
+                for f in self.feedback_store
+                if f.query_id == query_id
+            ]
+        return [f.__dict__ for f in self.feedback_store]
+
+    async def get_statistics(self) -> Dict[str, Any]:
+        """Get feedback statistics."""
+        if not self.feedback_store:
+            return {"total": 0, "avg_rating": 0.0}
+
+        ratings = [f.rating for f in self.feedback_store]
+        avg_rating = sum(ratings) / len(ratings)
+
+        return {
+            "total": len(self.feedback_store),
+            "avg_rating": avg_rating,
+            "rating_distribution": {
+                str(i): ratings.count(i) for i in range(1, 6)
+            },
+        }

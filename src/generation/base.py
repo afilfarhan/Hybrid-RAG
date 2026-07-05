@@ -1,57 +1,43 @@
-"""Base class for generators."""
+"""
+Hybrid RAG - Generation module
+"""
 
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional
-import logging
+from typing import Any, Dict, List, Optional
 
-logger = logging.getLogger(__name__)
+from src.retrieval.base import RetrievedChunk
+
+
+class GenerationResult:
+    """Represents a generation result."""
+
+    def __init__(
+        self,
+        answer: str,
+        citations: List[Dict[str, Any]],
+        confidence: float,
+        metadata: Optional[Dict[str, Any]] = None,
+    ):
+        self.answer = answer
+        self.citations = citations
+        self.confidence = confidence
+        self.metadata = metadata or {}
+
+    def __repr__(self) -> str:
+        return f"GenerationResult(answer_length={len(self.answer)}, confidence={self.confidence:.2f})"
 
 
 class BaseGenerator(ABC):
-    """Abstract base class for generators."""
-    
-    def __init__(self, config: Dict[str, Any]):
-        """Initialize generator.
-        
-        Args:
-            config: Configuration dictionary
-        """
-        self.config = config
-        self.temperature = config.get('temperature', 0.2)
-        self.max_tokens = config.get('max_tokens', 1000)
-        
+    """Base class for generators."""
+
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
+        self.config = config or {}
+
     @abstractmethod
     async def generate(
         self,
         query: str,
-        context: List[Dict[str, Any]],
-        system_prompt: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """Generate answer from query and context.
-        
-        Args:
-            query: User query
-            context: Retrieved context documents
-            system_prompt: Optional system prompt
-            
-        Returns:
-            Generated answer with metadata
-        """
-        pass
-    
-    @abstractmethod
-    async def generate_stream(
-        self,
-        query: str,
-        context: List[Dict[str, Any]]
-    ):
-        """Generate answer with streaming.
-        
-        Args:
-            query: User query
-            context: Retrieved context documents
-            
-        Yields:
-            Streaming response chunks
-        """
+        retrieved_chunks: List[RetrievedChunk],
+    ) -> GenerationResult:
+        """Generate an answer from retrieved chunks."""
         pass

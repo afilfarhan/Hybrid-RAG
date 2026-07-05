@@ -1,46 +1,24 @@
-# Hybrid RAG - Core Dependencies
-python-dotenv>=1.0.0
-pydantic>=2.0.0
-pydantic-settings>=2.0.0
+# Hybrid RAG - Requirements
 
-# LLM & Embeddings
-langchain>=0.1.0
-langchain-openai>=0.0.2
-langchain-community>=0.0.10
-langchain-elasticsearch>=0.2.0
-
-# Vector Store
-chromadb>=0.4.0
-
-# Text Processing
-tiktoken>=0.5.0
-nltk>=3.8.0
-spacy>=3.7.0
-
-# Document Processing
-python-docx>=1.1.0
-PyPDF2>=3.0.0
-pdfplumber>=0.10.0
-unstructured>=0.10.0
-beautifulsoup4>=4.12.0
-lxml>=4.9.0
-
-# Web & API
-requests>=2.31.0
-fastapi>=0.104.0
-uvicorn>=0.24.0
-aiohttp>=3.9.0
-
-# Caching
-redis>=5.0.0
-
-# Observability
-langsmith>=0.1.0
-
-# Data Validation & Testing
-pytest>=7.4.0
-pytest-asyncio>=0.21.0
-httpx>=0.26.0
-
-# Utilities
-python-multipart>=0.0.6
+langchain==0.3.0
+langchain-openai==0.2.0
+langchain-community==0.3.0
+litellm==1.50.0
+chromadb>=0.5.0
+redis>=5.2.0
+pytest-asyncio==0.24.0
+pydantic>=2.10.0
+pydantic-settings>=2.6.0
+python-dotenv==1.0.1
+tiktoken>=0.8.0
+rank-bm25==0.2.2
+sentence-transformers>=2.2.0
+unstructured>=0.16.0
+pandas>=2.0.0
+numpy>=1.24.0
+pytest>=8.0.0
+fastapi>=0.115.0
+uvicorn>=0.32.0
+python-multipart>=0.0.12
+requests>=2.32.0
+aiofiles>=24.1.0

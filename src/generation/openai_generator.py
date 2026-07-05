@@ -1,197 +1,128 @@
-"""OpenAI generator implementation."""
+"""
+Hybrid RAG - OpenAI generator with citations
+"""
 
-from typing import List, Dict, Any, Optional
-import logging
+from typing import Any, Dict, List, Optional
 
-logger = logging.getLogger(__name__)
+import openai
+from openai import AsyncOpenAI
+
+from src.generation.base import BaseGenerator, GenerationResult
+from src.retrieval.base import RetrievedChunk
 
 
-class OpenAIGenerator:
-    """OpenAI generator implementation."""
-    
-    def __init__(self, config: Dict[str, Any]):
-        """Initialize OpenAI generator.
-        
-        Args:
-            config: Configuration dictionary
-        """
-        self.config = config
-        self.api_key = config.get('api_key', '')
-        self.model_name = config.get('model_name', 'gpt-4o')
-        self.temperature = config.get('temperature', 0.2)
-        self.max_tokens = config.get('max_tokens', 1000)
-        self.client = None
-        
-    async def _get_client(self):
-        """Get OpenAI client.
-        
-        Returns:
-            OpenAI client instance
-        """
-        if self.client is None:
-            from openai import AsyncOpenAI
-            self.client = AsyncOpenAI(api_key=self.api_key)
-        return self.client
-    
+class OpenAIGenerator(BaseGenerator):
+    """Generator using OpenAI models with citation support."""
+
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
+        super().__init__(config)
+        api_key = config.get("api_key", "")
+        model_name = config.get("model_name", "gpt-4o-mini")
+
+        self.client = AsyncOpenAI(api_key=api_key)
+        self.model_name = model_name
+
+        # System prompt for grounded generation
+        self.system_prompt = """You are a helpful assistant that answers questions based on the provided context.
+Your answers must be grounded in the provided context and include citations to the source documents.
+
+Instructions:
+1. Answer the question using ONLY the information from the provided context
+2. Include citations in the format [Source: doc_id] at the end of each claim
+3. If the answer is not in the context, say "I don't have enough information to answer that question"
+4. Be concise and focused on the question
+5. Include the most relevant citations for each part of your answer"""
+
     async def generate(
         self,
         query: str,
-        context: List[Dict[str, Any]],
-        system_prompt: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """Generate answer from query and context.
-        
-        Args:
-            query: User query
-            context: Retrieved context documents
-            system_prompt: Optional system prompt
-            
-        Returns:
-            Generated answer with metadata
-        """
-        client = await self._get_client()
-        
-        context_text = self._format_context(context)
-        
-        if not system_prompt:
-            system_prompt = (
-                "You are a helpful assistant that answers questions based solely on the provided context. "
-                "Always cite your sources using [Source X] format where X is the document rank. "
-                "If the answer is not in the context, say 'I don't have information on that'."
-            )
-        
-        user_prompt = f"""Question: {query}
+        retrieved_chunks: List[RetrievedChunk],
+    ) -> GenerationResult:
+        """Generate an answer from retrieved chunks."""
+        # Build context from retrieved chunks
+        context = self._build_context(retrieved_chunks)
 
-Context:
-{context_text}
+        # Build prompt
+        prompt = f"""Context:
+{context}
 
-Please answer the question using only the information from the context above. Include citations in your answer."""
+Question: {query}
+
+Answer:"""
 
         try:
-            response = await client.chat.completions.create(
+            # Call OpenAI API
+            response = await self.client.chat.completions.create(
                 model=self.model_name,
                 messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
+                    {"role": "system", "content": self.system_prompt},
+                    {"role": "user", "content": prompt},
                 ],
-                temperature=self.temperature,
-                max_tokens=self.max_tokens
+                temperature=0.3,  # Low temperature for grounded responses
+                max_tokens=1000,
             )
-            
+
             answer = response.choices[0].message.content
-            
-            return {
-                'answer': answer,
-                'model': self.model_name,
-                'context': context,
-                'citations': self._extract_citations(answer),
-                'usage': {
-                    'prompt_tokens': response.usage.prompt_tokens,
-                    'completion_tokens': response.usage.completion_tokens,
-                    'total_tokens': response.usage.total_tokens
-                }
-            }
-            
-        except Exception as e:
-            logger.error(f"Error generating answer: {e}")
-            raise
-    
-    async def generate_stream(
-        self,
-        query: str,
-        context: List[Dict[str, Any]]
-    ):
-        """Generate answer with streaming.
-        
-        Args:
-            query: User query
-            context: Retrieved context documents
-            
-        Yields:
-            Streaming response chunks
-        """
-        client = await self._get_client()
-        
-        context_text = self._format_context(context)
-        
-        system_prompt = (
-            "You are a helpful assistant that answers questions based solely on the provided context. "
-            "Always cite your sources using [Source X] format where X is the document rank. "
-            "If the answer is not in the context, say 'I don't have information on that'."
-        )
-        
-        user_prompt = f"""Question: {query}
 
-Context:
-{context_text}
+            # Extract citations from retrieved chunks
+            citations = self._extract_citations(retrieved_chunks)
 
-Please answer the question using only the information from the context above. Include citations in your answer."""
+            # Calculate confidence based on retrieval scores
+            confidence = self._calculate_confidence(retrieved_chunks)
 
-        try:
-            stream = await client.chat.completions.create(
-                model=self.model_name,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
-                temperature=self.temperature,
-                max_tokens=self.max_tokens,
-                stream=True
+            return GenerationResult(
+                answer=answer,
+                citations=citations,
+                confidence=confidence,
+                metadata={
+                    "model": self.model_name,
+                    "num_chunks_used": len(retrieved_chunks),
+                },
             )
-            
-            async for chunk in stream:
-                if chunk.choices[0].delta.content:
-                    yield chunk.choices[0].delta.content
-                    
+
         except Exception as e:
-            logger.error(f"Error streaming answer: {e}")
-            raise
-    
-    def _format_context(self, context: List[Dict[str, Any]]) -> str:
-        """Format context for prompt.
-        
-        Args:
-            context: List of context documents
-            
-        Returns:
-            Formatted context string
-        """
-        formatted = []
-        
-        for i, doc in enumerate(context, 1):
-            text = doc.get('text', '')
-            source = doc.get('metadata', {}).get('source', 'unknown')
-            metadata = doc.get('metadata', {})
-            
-            doc_info = f"[Source {i}] (source: {source})"
-            if metadata.get('file_name'):
-                doc_info += f" - {metadata['file_name']}"
-            if metadata.get('page'):
-                doc_info += f" - Page {metadata['page']}"
-            
-            formatted.append(f"{doc_info}\n{text}\n")
-        
-        return "\n\n".join(formatted)
-    
-    def _extract_citations(self, answer: str) -> List[Dict[str, Any]]:
-        """Extract citations from answer.
-        
-        Args:
-            answer: Generated answer
-            
-        Returns:
-            List of citations
-        """
-        import re
-        
+            print(f"Error generating answer: {e}")
+            return GenerationResult(
+                answer="I encountered an error while generating the answer.",
+                citations=[],
+                confidence=0.0,
+                metadata={"error": str(e)},
+            )
+
+    def _build_context(self, chunks: List[RetrievedChunk]) -> str:
+        """Build context string from retrieved chunks."""
+        context_parts = []
+        for i, chunk in enumerate(chunks, 1):
+            metadata = chunk.metadata
+            source = metadata.get("source", "unknown")
+            chunk_id = metadata.get("chunk_id", f"chunk_{i}")
+
+            context_parts.append(
+                f"[Chunk {i} | Source: {source} | ID: {chunk_id}]\n"
+                f"{chunk.content}\n"
+            )
+
+        return "\n\n".join(context_parts)
+
+    def _extract_citations(self, chunks: List[RetrievedChunk]) -> List[Dict[str, Any]]:
+        """Extract citations from retrieved chunks."""
         citations = []
-        pattern = r'\[Source\s+(\d+)\]'
-        matches = re.findall(pattern, answer)
-        
-        for match in set(matches):
-            citations.append({
-                'source_id': int(match),
-                'reference': f'[Source {match}]'
-            })
-        
+        for i, chunk in enumerate(chunks, 1):
+            citations.append(
+                {
+                    "id": i,
+                    "chunk_id": chunk.metadata.get("chunk_id", ""),
+                    "source": chunk.metadata.get("source", "unknown"),
+                    "score": chunk.score,
+                    "content_preview": chunk.content[:200] + "..." if len(chunk.content) > 200 else chunk.content,
+                }
+            )
         return citations
+
+    def _calculate_confidence(self, chunks: List[RetrievedChunk]) -> float:
+        """Calculate confidence score based on retrieval scores."""
+        if not chunks:
+            return 0.0
+
+        avg_score = sum(chunk.score for chunk in chunks) / len(chunks)
+        return min(max(avg_score, 0.0), 1.0)

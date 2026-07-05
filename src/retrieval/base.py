@@ -1,67 +1,53 @@
-"""Base class for retrievers."""
+"""
+Hybrid RAG - Base retriever interface
+"""
 
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional
-import logging
+from typing import Any, Dict, List, Optional
 
-logger = logging.getLogger(__name__)
+from src.ingestion.base import Document
+
+
+class RetrievedChunk:
+    """Represents a retrieved chunk with metadata."""
+
+    def __init__(
+        self,
+        content: str,
+        metadata: Dict[str, Any],
+        score: float,
+        source: str,
+    ):
+        self.content = content
+        self.metadata = metadata
+        self.score = score
+        self.source = source
+
+    def __repr__(self) -> str:
+        return f"RetrievedChunk(score={self.score:.4f}, source={self.source})"
 
 
 class BaseRetriever(ABC):
-    """Abstract base class for retrievers."""
-    
-    def __init__(self, config: Dict[str, Any]):
-        """Initialize retriever.
-        
-        Args:
-            config: Configuration dictionary
-        """
-        self.config = config
-        self.top_k = config.get('top_k', 5)
-        self.score_threshold = config.get('score_threshold', 0.7)
-        
+    """Base class for retrievers."""
+
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
+        self.config = config or {}
+
     @abstractmethod
-    async def retrieve(self, query: str) -> List[Dict[str, Any]]:
-        """Retrieve relevant documents for a query.
-        
-        Args:
-            query: User query
-            
-        Returns:
-            List of relevant documents
-        """
+    async def retrieve(
+        self, query: str, top_k: int = 5, filter: Optional[Dict[str, Any]] = None
+    ) -> List[RetrievedChunk]:
+        """Retrieve relevant chunks for a query."""
         pass
-    
+
     @abstractmethod
-    async def retrieve_with_filter(
+    async def hybrid_retrieve(
         self,
         query: str,
-        metadata_filter: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
-        """Retrieve documents with metadata filtering.
-        
-        Args:
-            query: User query
-            metadata_filter: Metadata filter
-            
-        Returns:
-            List of relevant documents
-        """
+        top_k: int = 5,
+        dense_weight: float = 0.7,
+        sparse_weight: float = 0.3,
+        filter: Optional[Dict[str, Any]] = None,
+    ) -> List[RetrievedChunk]:
+        """Retrieve using hybrid search (dense + sparse)."""
         pass
-    
-    def _filter_results(
-        self,
-        results: List[Dict[str, Any]],
-        score_threshold: Optional[float] = None
-    ) -> List[Dict[str, Any]]:
-        """Filter results by score threshold.
-        
-        Args:
-            results: Raw results
-            score_threshold: Minimum score threshold
-            
-        Returns:
-            Filtered results
-        """
-        threshold = score_threshold or self.score_threshold
-        return [r for r in results if r.get('score', 0) >= threshold]

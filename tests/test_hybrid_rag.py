@@ -74,12 +74,17 @@ class TestRetrieval:
     def test_dense_retriever(self):
         """Test dense retriever initialization."""
         from src.retrieval.dense_retriever import DenseRetriever
+        from unittest.mock import MagicMock
+        
+        mock_embedding_service = MagicMock()
+        mock_vector_store = MagicMock()
         
         config = {'top_k': 5, 'score_threshold': 0.7}
-        retriever = DenseRetriever(config)
+        retriever = DenseRetriever(mock_embedding_service, mock_vector_store, config)
         
         assert retriever.top_k == 5
-        assert retriever.score_threshold == 0.7
+        assert retriever.embedding_service == mock_embedding_service
+        assert retriever.vector_store == mock_vector_store
     
     def test_hybrid_retriever(self):
         """Test hybrid retriever initialization."""

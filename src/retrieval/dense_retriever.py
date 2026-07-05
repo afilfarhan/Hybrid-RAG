@@ -1,84 +1,64 @@
-"""Dense retriever using vector embeddings."""
+"""
+Hybrid RAG - Dense retriever using vector search
+"""
 
-from typing import List, Dict, Any, Optional
-import logging
+from typing import Any, Dict, List, Optional
 
-logger = logging.getLogger(__name__)
+from src.embedding.base import BaseEmbeddingService
+from src.embedding.vector_store import BaseVectorStore
+from src.retrieval.base import BaseRetriever, RetrievedChunk
 
 
-class DenseRetriever:
-    """Dense retriever using vector embeddings."""
-    
-    def __init__(self, config: Dict[str, Any]):
-        """Initialize dense retriever.
-        
-        Args:
-            config: Configuration dictionary
-        """
-        self.config = config
-        self.top_k = config.get('top_k', 5)
-        self.score_threshold = config.get('score_threshold', 0.7)
-        self.embedding_service = config.get('embedding_service')
-        self.vector_store = config.get('vector_store')
-        
-    async def retrieve(self, query: str) -> List[Dict[str, Any]]:
-        """Retrieve relevant documents using dense embeddings.
-        
-        Args:
-            query: User query
-            
-        Returns:
-            List of relevant documents
-        """
+class DenseRetriever(BaseRetriever):
+    """Dense retriever using vector similarity search."""
+
+    def __init__(
+        self,
+        embedding_service: BaseEmbeddingService,
+        vector_store: BaseVectorStore,
+        config: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(config)
+        self.embedding_service = embedding_service
+        self.vector_store = vector_store
+        self.top_k = config.get("top_k", 5)
+
+    async def retrieve(
+        self, query: str, top_k: Optional[int] = None, filter: Optional[Dict[str, Any]] = None
+    ) -> List[RetrievedChunk]:
+        """Retrieve relevant chunks using dense vector search."""
+        if top_k is None:
+            top_k = self.top_k
+
+        # Embed the query
         query_embedding = await self.embedding_service.embed(query)
-        
+
+        # Search in vector store
         results = await self.vector_store.search(
-            query_embedding=query_embedding,
-            top_k=self.top_k
+            query_vector=query_embedding, top_k=top_k, filter=filter
         )
-        
-        results = self._filter_results(results)
-        
-        logger.info(f"Retrieved {len(results)} documents for query: {query[:50]}...")
-        return results
-    
-    async def retrieve_with_filter(
+
+        # Format results
+        chunks = []
+        for result in results:
+            chunks.append(
+                RetrievedChunk(
+                    content=result["metadata"].get("content", ""),
+                    metadata=result["metadata"],
+                    score=1.0 - result["score"],  # Convert distance to similarity
+                    source=result["metadata"].get("source", "unknown"),
+                )
+            )
+
+        return chunks
+
+    async def hybrid_retrieve(
         self,
         query: str,
-        metadata_filter: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
-        """Retrieve documents with metadata filtering.
-        
-        Args:
-            query: User query
-            metadata_filter: Metadata filter
-            
-        Returns:
-            List of relevant documents
-        """
-        query_embedding = await self.embedding_service.embed(query)
-        
-        results = await self.vector_store.search(
-            query_embedding=query_embedding,
-            top_k=self.top_k,
-            metadata_filter=metadata_filter
-        )
-        
-        results = self._filter_results(results)
-        
-        logger.info(f"Retrieved {len(results)} documents with filter for query: {query[:50]}...")
-        return results
-    
-    def _filter_results(
-        self,
-        results: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        """Filter results by score threshold.
-        
-        Args:
-            results: Raw results
-            
-        Returns:
-            Filtered results
-        """
-        return [r for r in results if r.get('score', 0) >= self.score_threshold]
+        top_k: int = 5,
+        dense_weight: float = 0.7,
+        sparse_weight: float = 0.3,
+        filter: Optional[Dict[str, Any]] = None,
+    ) -> List[RetrievedChunk]:
+        """Retrieve using dense search only (no sparse yet)."""
+        return await self.retrieve(query, top_k, filter)

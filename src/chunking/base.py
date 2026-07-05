@@ -1,77 +1,44 @@
-"""Base class for chunkers."""
+"""
+Hybrid RAG - Base chunker interface
+"""
 
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional
-import logging
+from typing import Any, Dict, List, Optional
 
-logger = logging.getLogger(__name__)
+from src.ingestion.base import Document
+
+
+class Chunk:
+    """Represents a chunk of a document."""
+
+    def __init__(
+        self,
+        content: str,
+        metadata: Dict[str, Any],
+        chunk_index: int = 0,
+        chunk_id: Optional[str] = None,
+    ):
+        self.content = content
+        self.metadata = metadata
+        self.chunk_index = chunk_index
+        self.chunk_id = chunk_id
+
+    def __repr__(self) -> str:
+        return f"Chunk(index={self.chunk_index}, content_length={len(self.content)})"
 
 
 class BaseChunker(ABC):
-    """Abstract base class for chunkers."""
-    
-    def __init__(self, config: Dict[str, Any]):
-        """Initialize chunker.
-        
-        Args:
-            config: Configuration dictionary
-        """
-        self.config = config
-        self.chunk_size = config.get('chunk_size', 512)
-        self.chunk_overlap = config.get('chunk_overlap', 50)
-        
+    """Base class for chunkers."""
+
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
+        self.config = config or {}
+
     @abstractmethod
-    def chunk(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
-        """Chunk text into smaller units.
-        
-        Args:
-            text: Text to chunk
-            metadata: Optional metadata to attach to chunks
-            
-        Returns:
-            List of chunk dictionaries with text and metadata
-        """
+    async def chunk(self, document: Document) -> List[Chunk]:
+        """Chunk a single document."""
         pass
-    
+
     @abstractmethod
-    async def chunk_async(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
-        """Async version of chunk.
-        
-        Args:
-            text: Text to chunk
-            metadata: Optional metadata to attach to chunks
-            
-        Returns:
-            List of chunk dictionaries with text and metadata
-        """
+    async def chunk_batch(self, documents: List[Document]) -> List[Chunk]:
+        """Chunk multiple documents."""
         pass
-    
-    def _create_chunk(
-        self,
-        text: str,
-        metadata: Optional[Dict[str, Any]] = None,
-        chunk_index: int = 0,
-        total_chunks: int = 1
-    ) -> Dict[str, Any]:
-        """Create a chunk dictionary.
-        
-        Args:
-            text: Chunk text
-            metadata: Original metadata
-            chunk_index: Index of this chunk
-            total_chunks: Total number of chunks
-            
-        Returns:
-            Chunk dictionary
-        """
-        chunk = {
-            'text': text,
-            'chunk_index': chunk_index,
-            'total_chunks': total_chunks,
-            'metadata': metadata or {}
-        }
-        
-        if metadata:
-            chunk['metadata'] = {**metadata}
-        
-        return chunk
