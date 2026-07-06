@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: hybrid-rag-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  chromadb:
+    image: chromadb/chromadb:latest
+    container_name: hybrid-rag-chromadb
+    ports:
+      - "8001:8000"
+    volumes:
+      - chromadb-data:/chromadb
+    restart: unless-stopped
+    environment:
+      - IS_PERSISTENT=true
+      - PERMANENT_DATA_PATH=/chromadb
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  rag-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hybrid-rag-api
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - VECTOR_STORE_TYPE=${VECTOR_STORE_TYPE:-chroma}
+      - VECTOR_STORE_URL=${VECTOR_STORE_URL:-http://chromadb:8000}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
+      - OPENAI_EMBEDDING_MODEL=${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
+      - HOST=${HOST:-0.0.0.0}
+      - PORT=${PORT:-8000}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - RETRIEVAL_TOP_K=${RETRIEVAL_TOP_K:-5}
+      - RETRIEVAL_DENSE_WEIGHT=${RETRIEVAL_DENSE_WEIGHT:-0.7}
+      - RETRIEVAL_SPARSE_WEIGHT=${RETRIEVAL_SPARSE_WEIGHT:-0.3}
+      - CHUNK_SIZE=${CHUNK_SIZE:-512}
+      - CHUNK_OVERLAP=${CHUNK_OVERLAP:-51}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://localhost:8080}
+      - DATA_RESIDENCY=${DATA_RESIDENCY:-us}
+      - ENABLE_AUDIT_LOGGING=${ENABLE_AUDIT_LOGGING:-true}
+    depends_on:
+      redis:
+        condition: service_healthy
+      chromadb:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - ./sample_test_docs:/app/sample_test_docs:ro
+      - ./data/vector_store:/app/data/vector_store
+      - ./logs:/app/logs
+
+volumes:
+  redis-data:
+  chromadb-data:

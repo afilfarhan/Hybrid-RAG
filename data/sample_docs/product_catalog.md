@@ -1,5 +1,3 @@
-"""Sample document content for testing."""
-
 # Product Catalog
 
 ## Product: Premium Wireless Headphones

@@ -8,7 +8,7 @@ A retrieval-augmented generation system with citations and low hallucination, bu
 Hybrid RAG/
 ├── app.py                 # Main application entry point
 ├── requirements.txt       # Python dependencies
-├── start.bat             # Windows quick start script
+├── .env                  # Environment variables (create from .env.example)
 ├── ui/                   # Frontend UI (static files)
 │   └── index.html       # Chatbot interface
 ├── services/             # Core RAG services
@@ -23,36 +23,44 @@ Hybrid RAG/
 
 ## 🚀 Quick Start
 
-### Option 1: Using the Start Script (Windows)
+### 1. Install Dependencies
 
 ```bash
-start.bat
-```
-
-### Option 2: Manual Start
-
-```bash
-# Install dependencies
 pip install -r requirements.txt
-
-# Start server
-python -m uvicorn app:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-### Option 3: Direct Python
+### 2. Configure Environment
+
+Create a `.env` file in the project root:
+
+```env
+# Optional: OpenAI API (for production)
+OPENAI_API_KEY=your_api_key_here
+
+# Service configuration
+HOST=0.0.0.0
+PORT=8000
+LOG_LEVEL=INFO
+```
+
+### 3. Run the Application
 
 ```bash
 python app.py
 ```
 
-## 🌐 Access Points
+Or with uvicorn:
 
-Once the server is running:
+```bash
+uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+```
 
+### 4. Access the Chatbot
+
+Open your browser and navigate to:
 - **Chat Interface**: http://localhost:8000
 - **API Documentation**: http://localhost:8000/docs
 - **Health Check**: http://localhost:8000/api/v1/health
-- **Query Endpoint**: http://localhost:8000/api/v1/query
 
 ## 🏗️ Architecture
 

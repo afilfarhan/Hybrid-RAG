@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 
 import litellm
 
-from src.core.provider_config import get_provider_model
+from src.core.provider_config import get_provider_model, DEFAULT_MODELS
 from src.embedding.base import BaseEmbeddingService
 
 
@@ -17,16 +17,19 @@ class LiteLMEmbeddingService(BaseEmbeddingService):
         super().__init__(config)
         
         # Handle provider-based model naming
-        model_name = config.get("model_name", "text-embedding-3-small")
-        provider = config.get("provider", None)
+        model_name = config.get("model_name")
+        provider = config.get("provider")
         
-        if provider:
+        if provider and not model_name:
+            model_name = DEFAULT_MODELS.get(provider, {}).get("embedding")
+        
+        if provider and model_name:
             model_name = get_provider_model(provider, "embedding", model_name)
         
         api_key = config.get("api_key", "")
         base_url = config.get("base_url", None)
 
-        self.model_name = model_name
+        self.model_name = model_name or "text-embedding-3-small"
         self.dimension: Optional[int] = None
 
         if api_key:
