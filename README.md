@@ -6,27 +6,42 @@ A retrieval-augmented generation system with citations and low hallucination, bu
 
 ```
 Hybrid RAG/
-├── app.py                 # Main application entry point
-├── requirements.txt       # Python dependencies
-├── start.bat             # Windows quick start script
-├── ui/                   # Frontend UI (static files)
-│   └── index.html       # Chatbot interface
-├── services/             # Core RAG services
-│   ├── base.py          # Service interfaces
-│   └── inmemory.py      # In-memory fallback services
-├── api/                  # REST API endpoints
-│   └── endpoints.py     # API routes
-├── data/                 # Sample documents and data
-├── tests/                # Test suite
-└── README.md            # This file
+├── app.py                  # Main application entry point
+├── requirements.txt        # Python dependencies
+├── start.bat              # Windows quick start script
+├── setup.bat              # Windows setup script
+├── ingest_documents.py    # PDF/document ingestion script
+├── test_setup.py          # Setup verification script
+├── README.md              # This file
+├── SETUP_GUIDE.md         # Complete setup documentation
+├── SETUP_CHROMADB.md      # ChromaDB-specific guide
+├── ui/                    # Frontend UI (static files)
+│   └── index.html         # Chatbot interface
+├── services/              # Core RAG services
+│   ├── base.py            # Service interfaces
+│   ├── inmemory.py        # In-memory fallback services
+│   └── chromadb_store.py  # ChromaDB vector store
+├── api/                   # REST API endpoints
+│   └── endpoints.py       # API routes
+├── data/                  # Sample documents and data
+│   ├── sample_docs/       # Place your PDFs here
+│   └── vector_store/      # ChromaDB persists here
+└── tests/                 # Test suite
 ```
 
 ## 🚀 Quick Start
 
-### Option 1: Using the Start Script (Windows)
+### Option 1: Using the Setup Script (Windows)
 
 ```bash
-start.bat
+# First-time setup
+.\setup.bat
+
+# Then start the server
+.\start.bat
+
+# Or manually start
+python -m uvicorn app:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 ### Option 2: Manual Start
@@ -34,6 +49,9 @@ start.bat
 ```bash
 # Install dependencies
 pip install -r requirements.txt
+
+# (Optional) Install PDF support
+pip install unstructured[pdf]
 
 # Start server
 python -m uvicorn app:app --host 0.0.0.0 --port 8000 --reload
@@ -65,12 +83,12 @@ The system is built on a clean architecture with clear separation of concerns:
 │                    API Layer (FastAPI)                  │
 │              REST endpoints and request handling        │
 └─────────────────────────────────────────────────────────┘
-                          ↓
+                           ↓
 ┌─────────────────────────────────────────────────────────┐
 │                   RAG Service                           │
 │              Orchestrates all components                │
 └─────────────────────────────────────────────────────────┘
-                          ↓
+                           ↓
 ┌─────────────────────────────────────────────────────────┐
 │              Services Layer (Abstract)                  │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐ │
@@ -82,7 +100,7 @@ The system is built on a clean architecture with clear separation of concerns:
 │  │  Service     │                                       │
 │  └──────────────┘                                       │
 └─────────────────────────────────────────────────────────┘
-                          ↓
+                           ↓
 ┌─────────────────────────────────────────────────────────┐
 │              Implementation Layer                       │
 │  ┌─────────────────┐  ┌─────────────────┐              │
@@ -114,10 +132,65 @@ The system automatically falls back to in-memory services when production servic
 
 The system comes with sample documents for testing:
 
-- Product catalog (headphones, watches, earbuds)
-- Return policy (30-day window, refund process)
-- Shipping information (domestic & international)
-- FAQ (payment methods, warranties, etc.)
+- **Returns Policy** - 30-day window, refund process
+- **Shipping Info** - Domestic & international shipping
+- **FAQ** - Payment methods, warranties, account questions
+
+### Adding Your Own Documents
+
+1. Place PDF, Markdown, or text files in `data/sample_docs/`
+2. Run: `python ingest_documents.py`
+3. Start querying your documents!
+
+## 📄 PDF & Document Ingestion
+
+### Supported Formats
+
+| Format | Extension | Required Package |
+|--------|-----------|------------------|
+| PDF | .pdf | `unstructured[pdf]` |
+| Markdown | .md, .markdown | Built-in |
+| Text | .txt | Built-in |
+| HTML | .html | `unstructured` |
+
+### Quick Ingestion
+
+```bash
+# Install PDF support (optional)
+pip install unstructured[pdf]
+
+# Ingest all documents in data/sample_docs/
+python ingest_documents.py
+```
+
+### Manual Ingestion
+
+```python
+from services.chromadb_store import ChromaDBVectorStore
+from document_ingestion import DocumentIngestor
+
+# Initialize
+vector_store = ChromaDBVectorStore(
+    persist_path="./data/vector_store",
+    collection_name="documents"
+)
+
+ingester = DocumentIngestor(chunk_size=512, chunk_overlap=51)
+
+# Ingest a PDF
+chunks = ingester.ingest_file(
+    "./data/sample_docs/your_document.pdf",
+    metadata={"doc_type": "policy"}
+)
+
+# Add to vector store
+texts = [c["text"] for c in chunks]
+metadatas = [c["metadata"] for c in chunks]
+vector_store.add_batch(texts, metadatas)
+
+# Persist
+vector_store.persist()
+```
 
 ## 🌐 Frontend UI
 
@@ -139,12 +212,25 @@ The chatbot interface features:
 | `PORT` | Server port | `8000` |
 | `LOG_LEVEL` | Logging level | `INFO` |
 | `OPENAI_API_KEY` | OpenAI API key (optional) | - |
-| `VECTOR_STORE_TYPE` | `inmemory` or `chroma` | `inmemory` |
+| `CHROMA_PERSIST_PATH` | ChromaDB persist path | `./data/vector_store` |
+| `CHROMA_COLLECTION_NAME` | ChromaDB collection name | `documents` |
+| `CHUNK_SIZE` | Document chunk size | `512` |
+| `CHUNK_OVERLAP` | Chunk overlap | `51` |
+
+### Supported Vector Stores
+
+| Type | Service | Use Case |
+|------|---------|----------|
+| `inmemory` | Sentence Transformers + NumPy | Development, testing |
+| `chroma` | ChromaDB + Sentence Transformers | Production, persistent storage |
 
 ## 🧪 Testing
 
 ```bash
 # Run tests
+python test_setup.py
+
+# Run with pytest
 pytest tests/
 
 # Run with coverage
@@ -196,12 +282,18 @@ docker run -p 8000:8000 hybrid-rag
 3. Configure Redis for caching
 4. Run with: `uvicorn app:app --host 0.0.0.0 --port 8000`
 
+### Cloud Platforms
+
+- **AWS**: Use EC2 or Lambda with EFS for vector store
+- **Azure**: Use App Service with File Storage
+- **GCP**: Use Cloud Run with Cloud Storage
+
 ## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Run tests: `pytest`
+4. Run tests: `python test_setup.py`
 5. Submit a pull request
 
 ## 📄 License
@@ -212,3 +304,74 @@ MIT License - see LICENSE file for details.
 
 - Built with FastAPI and sentence-transformers
 - Inspired by RAG best practices and research papers
+- Uses ChromaDB for production vector storage
+
+## 📚 Additional Documentation
+
+- **[SETUP_GUIDE.md](SETUP_GUIDE.md)** - Complete setup instructions
+- **[SETUP_CHROMADB.md](SETUP_CHROMADB.md)** - ChromaDB-specific guide
+- **[README_SETUP.md](README_SETUP.md)** - Quick start guide
+
+## 🐛 Troubleshooting
+
+### "unstructured not installed"
+```bash
+pip install unstructured[pdf]
+```
+
+### "ChromaDB collection already exists"
+```python
+import chromadb
+client = chromadb.PersistentClient(path="./data/vector_store")
+client.delete_collection("documents")
+```
+
+### Slow embedding
+- Use a GPU-enabled machine
+- Reduce batch size
+- Use a smaller embedding model
+
+## ✅ Verification
+
+Run the test script to verify everything works:
+
+```bash
+python test_setup.py
+```
+
+Expected output:
+```
+============================================================
+Hybrid RAG - Quick Test
+============================================================
+
+============================================================
+Testing Imports
+============================================================
+[OK] ChromaDBVectorStore imported
+[OK] DocumentIngestor imported
+[OK] InMemoryEmbeddingService imported
+[OK] InMemoryRetrievalService imported
+
+============================================================
+Testing Vector Store
+============================================================
+[OK] Vector store initialized
+[OK] Documents added to vector store
+[OK] Search returned 2 results
+[OK] Collection stats: 3 documents
+
+============================================================
+Testing Document Ingestion
+============================================================
+[OK] Document ingested: 7 chunks created
+
+============================================================
+Test Summary
+============================================================
+Imports: [PASS]
+Vector Store: [PASS]
+Ingestion: [PASS]
+
+[SUCCESS] All tests passed! Your Hybrid RAG system is ready.
+```
