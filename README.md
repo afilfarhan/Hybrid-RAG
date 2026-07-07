@@ -15,11 +15,13 @@ Hybrid RAG/
 ├── README.md              # This file
 ├── SETUP_GUIDE.md         # Complete setup documentation
 ├── SETUP_CHROMADB.md      # ChromaDB-specific guide
+├── PROVIDER_GUIDE.md      # LLM provider configuration guide
 ├── ui/                    # Frontend UI (static files)
 │   └── index.html         # Chatbot interface
 ├── services/              # Core RAG services
 │   ├── base.py            # Service interfaces
 │   ├── inmemory.py        # In-memory fallback services
+│   ├── litellm.py         # LiteLLM provider services (OpenAI, NVIDIA NIM, etc.)
 │   └── chromadb_store.py  # ChromaDB vector store
 ├── api/                   # REST API endpoints
 │   └── endpoints.py       # API routes
@@ -127,6 +129,32 @@ The system automatically falls back to in-memory services when production servic
 2. If failed, use in-memory sentence-transformers
 3. Try to initialize ChromaDB
 4. If failed, use in-memory numpy-based vector store
+
+## 🌍 LLM Provider Configuration
+
+The system supports multiple LLM providers through LiteLLM:
+
+| Provider | API Key | Provider Name |
+|----------|---------|---------------|
+| OpenAI | `OPENAI_API_KEY` | `openai` |
+| NVIDIA NIM | `NVIDIA_API_KEY` | `nvidia_nim` |
+| Anthropic | `ANTHROPIC_API_KEY` | `anthropic` |
+| Google Gemini | `GOOGLE_API_KEY` | `google` |
+| AWS Bedrock | (auto-detected) | `bedrock` |
+
+### Quick Start: NVIDIA NIM
+
+1. Get API key from [https://build.nvidia.com/](https://build.nvidia.com/)
+2. Update `.env`:
+   ```env
+   NVIDIA_API_KEY=nvapi-xxxx
+   PROVIDER=nvidia_nim
+   NVIDIA_LLM_MODEL=meta/llama3-70b-instruct
+   NVIDIA_EMBEDDING_MODEL=nvidia/nv-embedqa-e5-v5
+   ```
+3. Restart the server
+
+For detailed provider configuration, see [PROVIDER_GUIDE.md](PROVIDER_GUIDE.md).
 
 ## 📚 Sample Documents
 

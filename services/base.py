@@ -20,6 +20,12 @@ class EmbeddingService(ABC):
     def embed_batch(self, texts: List[str]) -> List[List[float]]:
         """Embed multiple text strings."""
         pass
+    
+    def get_dimension(self) -> int:
+        """Get embedding dimension (optional, for initialization)."""
+        test_text = "test"
+        embedding = self.embed(test_text)
+        return len(embedding)
 
 
 class VectorStore(ABC):

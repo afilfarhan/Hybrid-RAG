@@ -1,16 +1,25 @@
 import logging
+import os
 from pathlib import Path
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from contextlib import asynccontextmanager
 
+# Load environment variables from .env file
+load_dotenv()
+
 from services.chromadb_store import ChromaDBVectorStore
 from services.inmemory import (
     InMemoryEmbeddingService,
     InMemoryRetrievalService,
     InMemoryGenerationService
+)
+from services.litellm import (
+    LiteLMEmbeddingService,
+    LiteLMGenerationService
 )
 from services.base import RAGService
 from api.endpoints import router as api_router, set_rag_service
@@ -27,15 +36,31 @@ def initialize_services():
     """Initialize all RAG services."""
     logger.info("Initializing RAG services...")
     
-    # Create services
-    embedding_service = InMemoryEmbeddingService()
+    # Check if LiteLLM provider is configured
+    provider = os.getenv("PROVIDER", "openai").lower()
+    use_litellm = provider != "inmemory"
+    
+    logger.info(f"Using provider: {provider} (LiteLLM: {use_litellm})")
+    
+    if use_litellm:
+        # Initialize LiteLLM services
+        logger.info("Initializing LiteLLM services...")
+        embedding_service = LiteLMEmbeddingService()
+        generation_service = LiteLMGenerationService()
+        logger.info(f"LiteLLM LLM Model: {generation_service.model_name}")
+        logger.info(f"LiteLLM Embedding Model: {embedding_service.model_name}")
+    else:
+        # Initialize in-memory services
+        logger.info("Initializing in-memory services...")
+        embedding_service = InMemoryEmbeddingService()
+        generation_service = InMemoryGenerationService()
+    
     vector_store = ChromaDBVectorStore(
         persist_path="./data/vector_store",
         collection_name="documents",
         dimension=384
     )
     retrieval_service = InMemoryRetrievalService(vector_store, top_k=5)
-    generation_service = InMemoryGenerationService()
     
     # Create RAG service
     rag_service = RAGService(
@@ -170,4 +195,4 @@ def get_app():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
