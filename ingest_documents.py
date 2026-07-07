@@ -17,44 +17,44 @@ from document_ingestion import DocumentIngestor, HAS_UNSTRUCTURED
 
 def main():
     print("=" * 70)
-    print("📄 Document Ingestion to ChromaDB")
+    print("[DOC] Document Ingestion to ChromaDB")
     print("=" * 70)
     
     # Check dependencies
     if not HAS_UNSTRUCTURED:
-        print("\n⚠️  WARNING: unstructured not installed")
+        print("\n[WARN] unstructured not installed")
         print("Install with: pip install unstructured[pdf]")
-        print("This script will still work but PDF support may be limited\n")
+        print("PDF support will be limited, but text files will work\n")
     
     # Initialize vector store
-    print("\n🔧 Initializing ChromaDB vector store...")
+    print("\n[INIT] Initializing ChromaDB vector store...")
     vector_store = ChromaDBVectorStore(
         persist_path="./data/vector_store",
         collection_name="documents",
         dimension=384
     )
-    print(f"✓ Collection created: {vector_store.collection_name}")
-    print(f"✓ Current count: {vector_store.get_stats()['count']} documents")
+    print(f"[OK] Collection created: {vector_store.collection_name}")
+    print(f"[OK] Current count: {vector_store.get_stats()['count']} documents")
     
     # Initialize ingester
-    print("\n🔧 Initializing document ingester...")
+    print("\n[INIT] Initializing document ingester...")
     ingester = DocumentIngestor(
         chunk_size=512,
         chunk_overlap=51
     )
-    print("✓ Document ingester ready")
+    print("[OK] Document ingester ready")
     
     # Ingest sample files
     print("\n" + "=" * 70)
-    print("📚 Ingesting Documents")
+    print("[DOC] Ingesting Documents")
     print("=" * 70)
     
     # Sample documents to ingest
     sample_files = [
-        "./data/sample_docs/returns_policy.md",
-        "./data/sample_docs/shipping_info.md",
-        "./data/sample_docs/product_catalog.md",
-        "./data/sample_docs/faq.md",
+        "./data/sample_test_docs/returns_policy.md",
+        "./data/sample_test_docs/shipping_info.md",
+        "./data/sample_test_docs/product_catalog.md",
+        "./data/sample_test_docs/faq.md",
     ]
     
     total_chunks = 0
@@ -62,42 +62,42 @@ def main():
     for file_path in sample_files:
         if Path(file_path).exists():
             try:
-                print(f"\n📄 Processing: {file_path}")
+                print(f"\n[FILE] Processing: {file_path}")
                 chunks = ingester.ingest_file(
                     file_path,
                     metadata={"doc_type": "faq", "source": file_path}
                 )
-                print(f"   ✓ Created {len(chunks)} chunks")
+                print(f"   [OK] Created {len(chunks)} chunks")
                 
                 # Add to vector store
                 texts = [c["text"] for c in chunks]
                 metadatas = [c["metadata"] for c in chunks]
                 vector_store.add_batch(texts, metadatas)
-                print(f"   ✓ Added to vector store: {len(chunks)} chunks")
+                print(f"   [OK] Added to vector store: {len(chunks)} chunks")
                 
                 total_chunks += len(chunks)
             except Exception as e:
-                print(f"   ✗ Error: {e}")
+                print(f"   [ERROR] {e}")
         else:
-            print(f"\n⚠️  File not found (skipping): {file_path}")
+            print(f"\n[SKIP] File not found: {file_path}")
     
     # Ingest directory if available
     sample_docs_dir = Path("./data/sample_docs")
     if sample_docs_dir.exists():
-        print(f"\n📁 Ingesting entire directory: {sample_docs_dir}")
+        print(f"\n[DIR] Ingesting entire directory: {sample_docs_dir}")
         all_chunks = ingester.ingest_directory(str(sample_docs_dir), recursive=True)
-        print(f"   ✓ Total chunks from directory: {len(all_chunks)}")
+        print(f"   [OK] Total chunks from directory: {len(all_chunks)}")
         
         if all_chunks:
             texts = [c["text"] for c in all_chunks]
             metadatas = [c["metadata"] for c in all_chunks]
             vector_store.add_batch(texts, metadatas)
-            print(f"   ✓ Added to vector store: {len(all_chunks)} chunks")
+            print(f"   [OK] Added to vector store: {len(all_chunks)} chunks")
             total_chunks += len(all_chunks)
     
     # Final stats
     print("\n" + "=" * 70)
-    print("📊 Final Statistics")
+    print("[STATS] Final Statistics")
     print("=" * 70)
     stats = vector_store.get_stats()
     print(f"Collection: {stats['name']}")
@@ -106,13 +106,13 @@ def main():
     print(f"Total chunks ingested: {total_chunks}")
     
     # Persist
-    print("\n💾 Persisting database...")
+    print("\n[SAVE] Persisting database...")
     vector_store.persist()
-    print("✓ Database persisted to disk")
+    print("[OK] Database persisted to disk")
     
     # Test search
     print("\n" + "=" * 70)
-    print("🔍 Testing Search")
+    print("[TEST] Testing Search")
     print("=" * 70)
     
     test_queries = [
@@ -128,7 +128,7 @@ def main():
             print(f"  {i+1}. [{result['similarity']:.3f}] {result['text'][:100]}...")
     
     print("\n" + "=" * 70)
-    print("✅ Ingestion Complete!")
+    print("[SUCCESS] Ingestion Complete!")
     print("=" * 70)
     print("\nNext steps:")
     print("1. Start the API server: python -m uvicorn app:app --reload")

@@ -137,16 +137,83 @@ class InMemoryGenerationService(GenerationService):
                 "model": self.model_name
             }
         
-        # Extract context texts
-        context_texts = [c["text"] for c in contexts]
-        combined_context = "\n\n".join(context_texts)
+        # Extract context texts and scores
+        context_items = [(c["text"], c.get("similarity", 0)) for c in contexts]
+        context_items.sort(key=lambda x: x[1], reverse=True)
         
-        # Simple template-based response
-        response = f"Based on the available information:\n\n{combined_context}\n\n"
-        response += f"Answer: This information is derived from {len(contexts)} relevant documents."
+        # Filter out low-quality chunks (very low similarity or very short)
+        filtered_contexts = [
+            (text, score) for text, score in context_items 
+            if score > 0.3 and len(text.strip()) > 20
+        ]
+        
+        if not filtered_contexts:
+            return {
+                "text": "I don't have enough relevant information to answer this question.",
+                "confidence": 0.0,
+                "model": self.model_name
+            }
+        
+        # Extract just the relevant parts - take first 3 high-quality chunks
+        top_chunks = filtered_contexts[:3]
+        
+        # Clean up text - remove page numbers, headers, footers, copyright notices
+        cleaned_chunks = []
+        for text, score in top_chunks:
+            import re
+            cleaned = text.strip()
+            # Remove page markers with special characters (dashes, commas, backticks, etc.)
+            cleaned = re.sub(r'[`\-,\.]{2,}', ' ', cleaned)
+            # Remove excessive dashes and special characters
+            cleaned = re.sub(r'[\u2014\u2013]{2,}', ' ', cleaned)
+            # Remove multiple spaces
+            cleaned = re.sub(r'\s+', ' ', cleaned)
+            # Remove leading/trailing special characters
+            cleaned = cleaned.strip('`-,.\u2014\u2013 ')
+            
+            # Additional cleanup: remove common noise words/phrases
+            # Remove "Control" when used as a noise word (common in scanned PDFs)
+            cleaned = re.sub(r'\bControl\b', '', cleaned)
+            # Remove ISO copyright markers
+            cleaned = re.sub(r'© ISO/IEC \d+ – All rights reserved.*?(?=\bISO\b|$)', '', cleaned, flags=re.IGNORECASE)
+            # Remove page numbers like "19 ISO/IEC 27001:2022(E)"
+            cleaned = re.sub(r'\b\d+\s+ISO/IEC.*?\(E\)\b', '', cleaned, flags=re.IGNORECASE)
+            # Clean up multiple spaces again
+            cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+            
+            cleaned_chunks.append(cleaned)
+        
+        # Generate a summary based on the query
+        query_lower = query.lower()
+        answer_intro = ""
+        
+        if "cybersecurity" in query_lower or "security" in query_lower:
+            answer_intro = "According to ISO/IEC 27001, cybersecurity involves:\n\n"
+        elif "leadership" in query_lower:
+            answer_intro = "Leadership and commitment according to ISO/IEC 27001 require:\n\n"
+        elif "planning" in query_lower:
+            answer_intro = "When planning the information security management system, consider:\n\n"
+        else:
+            answer_intro = "Here is the relevant information:\n\n"
+        
+        # Build a concise response
+        response_parts = []
+        for i, chunk in enumerate(cleaned_chunks, 1):
+            # Extract just the relevant sentence or two
+            sentences = chunk.split('. ')
+            # Take first 2-3 sentences that seem relevant
+            relevant_sentences = sentences[:3]
+            # Filter out very short sentences
+            meaningful = [s.strip() for s in relevant_sentences if len(s.strip()) > 10]
+            if meaningful:
+                response_parts.append(f"• {' '.join(meaningful)}.")
+        
+        # Build the final response
+        response = answer_intro + "\n".join(response_parts)
+        response += f"\n\nAnswer: This information is derived from {len(cleaned_chunks)} relevant document chunks."
         
         # Calculate confidence based on similarity scores
-        avg_similarity = np.mean([c.get("similarity", 0) for c in contexts]) if contexts else 0
+        avg_similarity = np.mean([score for _, score in filtered_contexts]) if filtered_contexts else 0
         confidence = min(avg_similarity, 0.95)
         
         return {

@@ -6,9 +6,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from contextlib import asynccontextmanager
 
+from services.chromadb_store import ChromaDBVectorStore
 from services.inmemory import (
     InMemoryEmbeddingService,
-    InMemoryVectorStore,
     InMemoryRetrievalService,
     InMemoryGenerationService
 )
@@ -29,7 +29,11 @@ def initialize_services():
     
     # Create services
     embedding_service = InMemoryEmbeddingService()
-    vector_store = InMemoryVectorStore()
+    vector_store = ChromaDBVectorStore(
+        persist_path="./data/vector_store",
+        collection_name="documents",
+        dimension=384
+    )
     retrieval_service = InMemoryRetrievalService(vector_store, top_k=5)
     generation_service = InMemoryGenerationService()
     
@@ -50,6 +54,12 @@ def initialize_services():
 
 def load_sample_documents(rag_service):
     """Load sample documents into the vector store."""
+    # Skip loading sample docs if vector store already has documents
+    stats = rag_service.vector_store.get_stats()
+    if stats['count'] > 0:
+        logger.info(f"Vector store already has {stats['count']} documents. Skipping sample document loading.")
+        return
+    
     sample_docs = [
         {
             "text": "We offer a 30-day return policy for all products. Items must be in their original condition with all packaging and accessories included.",

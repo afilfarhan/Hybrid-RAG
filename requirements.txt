@@ -10,11 +10,11 @@ sentence-transformers>=2.2.0
 torch>=2.0.0
 transformers>=4.41.0
 
-# Vector Storage (optional - for production)
+# Vector Storage
 chromadb>=0.5.0
 redis>=5.2.0
 
-# LLM Integration (optional - for production)
+# LLM Integration
 openai>=1.0.0
 litellm==1.50.0
 
@@ -36,8 +36,26 @@ tiktoken>=0.8.0
 pytest>=8.0.0
 pytest-asyncio==0.24.0
 
-# Document Processing (optional)
+# Document Processing (PDF, Markdown, etc.)
 unstructured>=0.16.0
+unstructured[pdf]>=0.16.0
+unstructured[md]>=0.16.0
+pdfminer.six>=2023.0.0
+pdfplumber>=0.10.0
+pypandoc>=1.8.0
+markdown>=3.6.0
+beautifulsoup4>=4.12.0
 
 # Ranking
 rank-bm25==0.2.2
+
+# Additional PDF Processing Dependencies
+pdf2image>=1.16.3
+Pillow>=10.0.0
+
+# HTML/Markdown Processing
+beautifulsoup4>=4.12.0
+markdown>=3.6.0
+
+# Optional: GPU support for faster embeddings
+# torch>=2.0.0+cu118  # Uncomment for CUDA support

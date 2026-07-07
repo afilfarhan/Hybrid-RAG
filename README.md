@@ -148,20 +148,60 @@ The system comes with sample documents for testing:
 
 | Format | Extension | Required Package |
 |--------|-----------|------------------|
-| PDF | .pdf | `unstructured[pdf]` |
-| Markdown | .md, .markdown | Built-in |
+| PDF | .pdf | `unstructured[pdf]`, `markdown`, `beautifulsoup4` |
+| Markdown | .md, .markdown | `unstructured`, `markdown` |
 | Text | .txt | Built-in |
-| HTML | .html | `unstructured` |
+| HTML | .html | `unstructured`, `beautifulsoup4` |
 
 ### Quick Ingestion
 
 ```bash
-# Install PDF support (optional)
-pip install unstructured[pdf]
+# Install all required dependencies
+pip install unstructured[pdf] unstructured[md] markdown beautifulsoup4 pdfminer.six pdfplumber
 
-# Ingest all documents in data/sample_docs/
+# Ingest all documents in data/sample_test_docs/
 python ingest_documents.py
 ```
+
+### Important: Understanding the Vector Store
+
+The vector store **accumulates** documents - it does not replace them. When you run `ingest_documents.py`:
+
+1. **Existing documents are kept** - Your new PDFs are added to the existing collection
+2. **Sample docs are also loaded** - The API server loads sample documents on startup
+3. **Search returns the best matches** - Results depend on query similarity
+
+### To Start Fresh
+
+If you want to clear all documents and start over:
+
+```python
+# Run this in Python
+from services.chromadb_store import ChromaDBVectorStore
+vs = ChromaDBVectorStore()
+vs.clear()
+print("Vector store cleared!")
+```
+
+Or delete the vector store directory:
+
+```bash
+rm -rf data/vector_store
+```
+
+Then run ingestion again:
+
+```bash
+python ingest_documents.py
+```
+
+### Response Quality
+
+The system automatically cleans PDF output by:
+- Removing page markers and special characters
+- Filtering low-quality chunks
+- Generating concise, focused answers
+- Showing only the most relevant 3 chunks per query
 
 ### Manual Ingestion
 

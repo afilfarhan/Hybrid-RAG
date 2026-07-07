@@ -166,9 +166,11 @@ class ChromaDBVectorStore(VectorStore):
         }
     
     def persist(self):
-        """Persist the database to disk."""
-        self.client.persist()
+        """Persist the database to disk (ChromaDB auto-persists)."""
+        # ChromaDB automatically persists to disk when using PersistentClient
+        # This method is kept for compatibility but does nothing
+        pass
     
     def disconnect(self):
         """Close the connection."""
-        self.persist()
+        pass

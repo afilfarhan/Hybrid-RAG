@@ -63,10 +63,15 @@ class DocumentIngestor:
             if not HAS_UNSTRUCTURED:
                 raise ImportError(
                     "unstructured not installed. "
-                    "Install with: pip install unstructured[pdf]"
+                    "Install with: pip install unstructured[pdf] pdfminer.six pdfplumber"
                 )
-            elements = partition_pdf(file_path)
-            text = "\n\n".join([str(el) for el in elements])
+            try:
+                elements = partition_pdf(file_path)
+                text = "\n\n".join([str(el) for el in elements])
+            except Exception as e:
+                raise ImportError(
+                    f"PDF processing failed. Install: pip install unstructured[pdf] pdfminer.six pdfplumber. Error: {e}"
+                )
         elif ext == '.md' or ext == '.markdown':
             if not HAS_UNSTRUCTURED:
                 # Fallback: read as text
@@ -128,12 +133,19 @@ class DocumentIngestor:
         
         for file_path in files:
             if file_path.is_file() and file_path.suffix.lower() in extensions:
+                # Skip README files
+                if file_path.name.lower().startswith("readme"):
+                    continue
+                
                 try:
                     chunks = self.ingest_file(file_path)
                     all_chunks.extend(chunks)
-                    print(f"✓ Ingested: {file_path} ({len(chunks)} chunks)")
+                    print(f"[OK] Ingested: {file_path} ({len(chunks)} chunks)")
+                except ImportError as e:
+                    print(f"[SKIP] PDF support not available for {file_path.name}: {e}")
+                    print(f"       Install: pip install unstructured[pdf] pdfminer.six pdfplumber")
                 except Exception as e:
-                    print(f"✗ Error ingesting {file_path}: {e}")
+                    print(f"[ERROR] Error ingesting {file_path}: {e}")
         
         return all_chunks
     
@@ -201,8 +213,8 @@ def main():
         collection_name="documents",
         dimension=384
     )
-    print(f"✓ Collection created: {vector_store.collection_name}")
-    print(f"✓ Current count: {vector_store.get_stats()['count']} documents")
+    print(f"[OK] Collection created: {vector_store.collection_name}")
+    print(f"[OK] Current count: {vector_store.get_stats()['count']} documents")
     
     # Initialize ingester
     print("\\nInitializing document ingester...")
@@ -210,7 +222,7 @@ def main():
         chunk_size=512,
         chunk_overlap=51
     )
-    print("✓ Document ingester ready")
+    print("[OK] Document ingester ready")
     
     # Ingest files
     print("\\n" + "=" * 60)
@@ -255,7 +267,7 @@ def main():
     # Persist
     print("\\nPersisting database...")
     vector_store.persist()
-    print("✓ Database persisted to disk")
+    print("[OK] Database persisted to disk")
     
     print("\\n" + "=" * 60)
     print("Ingestion Complete!")
